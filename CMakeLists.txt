@@ -57,6 +57,7 @@ endif()
 
 # remove flag that makes all warnings into errors
 
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fpermissive")
 MESSAGE( STATUS "CMAKE_CXX_FLAGS: " ${CMAKE_CXX_FLAGS} )
 
 # Declare Headers
