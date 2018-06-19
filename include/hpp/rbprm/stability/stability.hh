@@ -45,6 +45,15 @@ namespace hpp {
     double IsStable(const RbPrmFullBodyPtr_t fullbody, State& state, const robust_equilibrium::StaticEquilibriumAlgorithm = robust_equilibrium::STATIC_EQUILIBRIUM_ALGORITHM_DLP);
 
 
+    /// Using the polytope computation of the gravito inertial wrench cone, performs
+    /// a static equilibrium test on the robot.
+    ///
+    /// \param fullbody The considered robot for static equilibrium
+    /// \param state The current State of the robots, in terms of contact creation
+    /// \return Whether the configuration is statically balanced
+    MatrixXX computeContactForces(const RbPrmFullBodyPtr_t fullbody, State& state, const robust_equilibrium::StaticEquilibriumAlgorithm = robust_equilibrium::STATIC_EQUILIBRIUM_ALGORITHM_LP,  const core::value_type friction = 0.3);
+
+
     /// Using the polytope computation of the gravito inertial wrench cone,
     /// returns the CWC of the robot at a given state
     ///

@@ -254,6 +254,84 @@ const fcl::Vec3f comfcl = comcptr->com();*/
         }
         return res ;
     }
+
+    MatrixXX computeContactForces(const RbPrmFullBodyPtr_t fullbody, State& state, const robust_equilibrium::StaticEquilibriumAlgorithm algorithm, const core::value_type friction = 0.3)
+    {
+#ifdef PROFILE
+    RbPrmProfiler& watch = getRbPrmProfiler();
+    watch.start("test balance");
+#endif
+        StaticEquilibrium staticEquilibrium(initLibrary(fullbody));
+        robust_equilibrium::Vector3 com = setupLibrary(fullbody,state,staticEquilibrium,algorithm);
+	MatrixXX contact_forces;
+        if(algorithm == STATIC_EQUILIBRIUM_ALGORITHM_LP)
+        {
+	  double res;
+	  VectorX force_coeffs = staticEquilibrium.computeContactForceCoeffs(com,res);
+	  std::size_t num_coeffs = force_coeffs.size() - 1;
+
+	  std::vector<std::string> contacts;
+	  for(std::map<std::string,bool>::const_iterator cit = state.contacts_.begin();cit!=state.contacts_.end(); ++ cit){
+	    if(cit->second)
+	      contacts.push_back(cit->first);
+	  }
+	  const T_Limb limbs = fullbody->GetLimbs();
+	  std::size_t nbContactPoints(0);
+	  std::vector<std::size_t> contactPointsInc = numContactPoints(limbs, contacts, nbContactPoints);
+	  robust_equilibrium::MatrixX3 normals  (nbContactPoints,3);
+	  robust_equilibrium::MatrixX3 positions(nbContactPoints,3);
+	  std::size_t currentIndex(0), c(0);
+	  for(std::vector<std::size_t>::const_iterator cit = contactPointsInc.begin();cit != contactPointsInc.end(); ++cit, ++c){
+	    const RbPrmLimbPtr_t limb =limbs.at(contacts[c]);
+	    const fcl::Vec3f& n = state.contactNormals_.at(contacts[c]);
+	    Vector3 normal(n[0],n[1],n[2]);
+	    const std::size_t& inc = *cit;
+	    if(inc > 1)
+	      computeRectangleContact(contacts[c], limb,state,positions.middleRows<4>(currentIndex));
+	    else
+	      computePointContact(contacts[c], limb,state,positions.middleRows<1>(currentIndex,inc));
+	    for(int i =0; i < inc; ++i)
+	      {
+		normals.middleRows<1>(currentIndex+i) = normal;
+	      }
+	    currentIndex += inc;
+	  }
+	    
+	  long int cp = nbContactPoints;
+	  contact_forces = MatrixXX::Zero(cp,3);
+	  for (long int i = 0; i < cp; i++) {
+	    Vector3 T1,T2,N;
+	    Vector3 P;
+	    N = normals.row(i);
+	    P = positions.row(i);
+	    T1 = N.cross(Vector3::UnitY());
+	    if(T1.norm()<1e-5)
+	      T1 = N.cross(Vector3::UnitX());
+	    T2 = N.transpose().cross(T1);
+	    T1.normalize();
+	    T2.normalize();
+	      
+	    Eigen::MatrixXd pyramid_vec(4,3);
+	    pyramid_vec.row(0) = N + friction*T1;
+	    pyramid_vec.row(1) = N - friction*T1;
+	    pyramid_vec.row(2) = N + friction*T2;
+	    pyramid_vec.row(3) = N - friction*T2;
+
+	    std::cout << "normal for limb "<< i << " :" <<  std::endl;
+	    std::cout << N.transpose() << std::endl;
+	    std::cout << "pyramid vector ... " << std::endl;
+	    std::cout << pyramid_vec << std::endl;
+
+	    Eigen::VectorXd B = force_coeffs.segment<4>(i*4);
+	    Eigen::Vector3d force_vec = (pyramid_vec.transpose())*(B);
+	    contact_forces.row(i) = force_vec;
+	  }
+        }
+#ifdef PROFILE
+    watch.stop("test balance");
+#endif
+        return contact_forces;
+    }
 }
 }
 }
